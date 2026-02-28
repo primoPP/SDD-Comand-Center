@@ -1,0 +1,54 @@
+# TOON v3.0 – Acceptance Specification
+# Feature: sdd-agent-centralization
+# Source: primoPP/SDD-Comand-Center
+
+acceptance:
+  feature: SddAgentCentralization
+  version: 1.0.0
+
+meta:
+  feature-ref: sdd-agent-centralization.feature.toon
+  coverage: functional
+  total-scenarios: 12
+  total-edge-cases: 5
+  total-error-scenarios: 4
+
+test-strategy:
+  approach: scenario-based
+  environment: local-dev
+  prerequisites[3]: VS Code v1.108+ installed,GitHub CLI authenticated,primoPP/SDD-Comand-Center repo accessible
+
+acceptance-criteria[6]{id,description,batch}:
+  AC-001,SDD agents/skills/prompts can be installed to ~/.copilot/ via install-central target,batch-a
+  AC-002,VS Code settings are automatically configured to discover centralized files,batch-a
+  AC-003,SDD agents can be pushed to GitHub org .github-private repo via install-org target,batch-b
+  AC-004,Per-repo lightweight init creates only .sdd/ context and copilot-instructions.md,batch-c
+  AC-005,Workspace-level agents take precedence over centralized agents,batch-a
+  AC-006,Centralization can be fully reversed via uninstall-central target,batch-a
+
+scenarios[12]{id,description,given,when,then,status,batch}:
+  SC-001,User-level install copies agents to home directory,"Developer has primoPP/SDD-Comand-Center cloned and sdd.mk available","Developer runs make -f sdd.mk install-central","8 agent files are copied to ~/.copilot/agents/ and 14 skill directories to ~/.copilot/skills/ and 3 prompt files to ~/.copilot/prompts/",pending,batch-a
+  SC-002,VS Code settings configured after user-level install,"Developer runs install-central successfully","VS Code user settings.json is updated","chat.instructionsFilesLocations contains ~/.copilot/ path and chat.agentSkillsLocations contains ~/.copilot/skills/ path",pending,batch-a
+  SC-003,Centralized agents visible in new workspace without per-repo install,"install-central completed and VS Code settings configured","Developer opens a new workspace that has no .github/agents/","SDD agents (@planning @architecture @implementation @review @test @orchestrator @bootstrap @product-owner) are available in Copilot Chat",pending,batch-a
+  SC-004,Workspace agents override centralized agents,"Both ~/.copilot/agents/planning.agent.md and .github/agents/planning.agent.md exist","Developer invokes @planning in the workspace","Workspace version (.github/agents/) is used instead of centralized version",pending,batch-a
+  SC-005,Uninstall removes centralized files and reverts settings,"install-central was previously completed","Developer runs make -f sdd.mk uninstall-central STRATEGY=user","All files in ~/.copilot/ created by install-central are removed and VS Code settings are reverted",pending,batch-a
+  SC-006,Central status shows current configuration,"install-central was previously completed","Developer runs make -f sdd.mk central-status","Output shows strategy=user-level and file counts for agents/skills/prompts and VS Code settings paths",pending,batch-a
+  SC-007,Org-level install pushes agents to .github-private,"Developer has GitHub org access and install-central patterns established","Developer runs make -f sdd.mk install-org ORG_NAME=PicPay","SDD agent .md files are pushed to PicPay/.github-private repo via GitHub API",pending,batch-b
+  SC-008,Org agents available via VS Code polling,"install-org completed and .github-private contains SDD agents","Developer opens VS Code in any org repo","VS Code GitHubOrgCustomAgentProvider polls and discovers SDD agents within 5 minutes",pending,batch-b
+  SC-009,Lightweight per-repo init creates context only,"install-central already completed (centralized agents available)","Developer runs make -f sdd.mk install-project-context PROJECT_NAME=my-service","Only .sdd/context.md .sdd/version.md and .github/copilot-instructions.md are created and no agent/skill/prompt files copied",pending,batch-c
+  SC-010,Lightweight init generates correct copilot-instructions.md,"Developer runs install-project-context with PROJECT_NAME=my-api","Command completes successfully","Generated copilot-instructions.md contains project name and framework references and SDD section but no embedded agent definitions",pending,batch-c
+  SC-011,Idempotent install-central re-run,"install-central was already completed","Developer runs install-central again","Existing files are overwritten with latest versions and no duplicates created and VS Code settings remain correct",pending,batch-a
+  SC-012,Install-central with FORCE flag overwrites,"install-central was completed and some agent files were manually modified","Developer runs make -f sdd.mk install-central FORCE=true","All agent/skill/prompt files are replaced with canonical versions from source repo",pending,batch-a
+
+edge-cases[5]{case,expected-behavior,batch}:
+  ~/.copilot/ directory does not exist before install-central,Directory is created automatically with correct permissions,batch-a
+  VS Code settings.json does not exist or is empty,Settings file is created with minimal valid JSON containing the centralization settings,batch-a
+  .github-private repo does not exist in the org,install-org fails with clear error message suggesting repo creation,batch-b
+  .sdd/ directory already exists from full SDD install when running install-project-context,Command detects existing full install and warns user with option to convert to lightweight mode,batch-c
+  Developer has no internet access during install-central,Command works from local source repo clone without requiring network access,batch-a
+
+error-scenarios[4]{error,trigger,expected-response,batch}:
+  CENTRAL_INSTALL_FAILED,Source repo path not found or agent files missing,"Error: SDD source not found at [path]. Clone primoPP/SDD-Comand-Center first.",batch-a
+  SETTINGS_UPDATE_FAILED,VS Code settings.json is read-only or malformed,"Error: Cannot update VS Code settings at [path]. Check file permissions.",batch-a
+  ORG_PUSH_FAILED,GitHub API authentication fails or insufficient permissions,"Error: Cannot push to [org]/.github-private. Verify gh auth status and org write access.",batch-b
+  CONTEXT_INIT_FAILED,.sdd/ creation fails due to permissions or disk space,"Error: Cannot create .sdd/ directory. Check permissions and disk space.",batch-c

@@ -1,0 +1,116 @@
+# TOON v3.0 – Architecture Specification Example
+# Token-Oriented Object Notation for Technical Contracts
+# Version: {{BOOTSTRAP_VERSION}}
+# Reference: https://github.com/toon-format/spec
+
+architecture:
+  name: CreateOrder
+  version: 1.0.0
+
+meta:
+  id: ARCH-001
+  feature: FT-001
+  style: HEXAGONAL
+  language: "{{PROJECT_LANGUAGE}}"
+
+layer-structure[4]: entrypoint,use-case,domain,gateway
+
+entrypoint:
+  type: REST_CONTROLLER
+  path: /api/v1/orders
+  component: OrderController
+  responsibilities[4]: Parse and validate HTTP request,Map DTO to Command,Delegate to UseCase,Map Result to HTTP response
+
+use-case:
+  type: BUSINESS_LOGIC
+  component: CreateOrderUseCase
+  interface: CreateOrderPort
+  responsibilities[4]: Orchestrate business flow,Validate business rules,Create domain entities,Delegate persistence to gateway
+
+domain:
+  entities[3]{name,type,description}:
+    Order,AGGREGATE_ROOT,Aggregate root for orders
+    OrderItem,VALUE_OBJECT,Value object within Order
+    OrderStatus,ENUM,Enum for order lifecycle
+  value-objects[2]{name,description}:
+    Money,Immutable money representation
+    Address,Shipping address VO
+  events[1]{name,description}:
+    OrderCreatedEvent,Domain event published after order creation
+
+gateway:
+  type: PERSISTENCE_ADAPTER
+  interface: OrderGateway
+  implementation: OrderJpaGateway
+  responsibilities[3]: Persist Order aggregate,Map Domain to JPA Entity,Query order by id/criteria
+
+component-contracts:
+  OrderController:
+    location: "{{ENTRYPOINT_PACKAGE}}"
+    annotations[2]: "@RestController","@RequestMapping"
+    dependencies[1]{name,type}:
+      createOrderUseCase,CreateOrderPort
+    endpoints[1]{method,path,consumes,produces,request,response-201,response-400}:
+      POST,/api/v1/orders,application/json,application/json,CreateOrderRequest,CreateOrderResponse,ErrorResponse
+    mappings[2]: CreateOrderRequest→CreateOrderCommand,CreateOrderResult→CreateOrderResponse
+
+  CreateOrderUseCase:
+    location: "{{USECASE_PACKAGE}}"
+    implements: CreateOrderPort
+    dependencies[5]{name,type}:
+      orderGateway,OrderGateway
+      customerGateway,CustomerGateway
+      productGateway,ProductGateway
+      paymentGateway,PaymentGateway
+      eventPublisher,EventPublisher
+    method:
+      name: execute
+      input: CreateOrderCommand
+      output: CreateOrderResult
+    business-rules[3]{id,method}:
+      BR-001,validateMinimumOrderValue
+      BR-002,validateShippingAddress
+      BR-003,validateStockAvailability
+
+  Order:
+    location: "{{DOMAIN_PACKAGE}}"
+    type: AGGREGATE_ROOT
+    immutable: true
+    factory-method: "create(customerId, items, shippingAddress)"
+    invariants[3]: items.size() >= 1,total > Money.ZERO,customerId != null
+    methods[3]{name,return}:
+      calculateTotal,Money
+      addItem,Order
+      updateStatus,Order
+
+  OrderGateway:
+    location: "{{GATEWAY_PACKAGE}}"
+    interface-location: "{{USECASE_PACKAGE}}"
+    methods[3]{name,input,output}:
+      save,Order,Order
+      findById,UUID,Optional<Order>
+      findByCustomerId,UUID,List<Order>
+    implementation:
+      name: OrderJpaGateway
+      jpa-entity: OrderEntity
+      repository: OrderJpaRepository
+      mapper: OrderMapper
+
+dtos[2]{name,location,fields}:
+  CreateOrderRequest,"{{DTO_PACKAGE}}","customerId:UUID,items:List<OrderItemDTO>,shippingAddress:AddressDTO,paymentMethodId:UUID"
+  CreateOrderResponse,"{{DTO_PACKAGE}}","orderId:UUID,orderNumber:String,status:String,total:MoneyDTO,estimatedDelivery:String"
+
+error-handling:
+  strategy: RESULT_TYPE
+  codes[4]{code,http-status,message}:
+    ORDER_BELOW_MINIMUM,400,Order total is below minimum
+    INVALID_SHIPPING_ADDRESS,400,Cannot deliver to address
+    INSUFFICIENT_STOCK,400,Item {itemName} has only {available} units
+    PAYMENT_METHOD_INVALID,400,Payment method not found or expired
+
+batch-info:
+  current-batch: batch-a
+  total-batches: 2
+  dependencies: none
+  implementation-order: 1
+  files-to-create[8]: Order.kt,OrderItem.kt,OrderStatus.kt,Money.kt,OrderRepository.kt,CreateOrderUseCase.kt,OrderController.kt,OrderJpaGateway.kt

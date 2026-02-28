@@ -1,0 +1,117 @@
+# TOON v3.0 – Acceptance Specification Example
+# Token-Oriented Object Notation for Acceptance Criteria
+# Version: {{BOOTSTRAP_VERSION}}
+# Reference: https://github.com/toon-format/spec
+
+acceptance:
+  name: CreateOrder
+  version: 1.0.0
+
+meta:
+  id: AC-001
+  feature: FT-001
+  priority: HIGH
+  coverage: 100%
+
+test-strategy:
+  approach: BLACKBOX_FIRST
+  entry-point: POST /api/v1/orders
+  test-type: INTEGRATION
+  test-data: FIXTURES
+
+acceptance-criteria[5]{id,description,priority,automated,test-case}:
+  AC-001-01,Valid order with single item is created successfully,MUST,true,TC-001
+  AC-001-02,Valid order with multiple items is created successfully,MUST,true,TC-002
+  AC-001-03,Order below minimum value is rejected with proper error,MUST,true,TC-003
+  AC-001-04,Order with insufficient stock is rejected with item details,MUST,true,TC-004
+  AC-001-05,Order with invalid payment method is rejected,MUST,true,TC-005
+
+test-cases:
+  TC-001:
+    name: test_create_order_single_item_success
+    type: INTEGRATION
+    setup[3]: Insert customer C-123 into database,Insert product P-456 with stock 10,Insert payment method PM-789
+    request:
+      method: POST
+      url: /api/v1/orders
+      headers[2]{key,value}:
+        Authorization,Bearer valid-token
+        Content-Type,application/json
+      body:
+        customerId: C-123
+        items[1]{productId,quantity}:
+          P-456,2
+        shippingAddress: "{street,city,zip}"
+        paymentMethodId: PM-789
+    expected:
+      status: 201
+      body-assertions[3]{field,assertion}:
+        orderId,not null
+        status,PENDING
+        total,greater than 0
+    verify[3]: Order exists in database,OrderCreatedEvent was published,Inventory was decremented
+
+  TC-002:
+    name: test_create_order_multiple_items_success
+    type: INTEGRATION
+    similar-to: TC-001 with multiple items
+    setup[3]: Insert customer C-123,Insert products P-456 and P-789,Insert payment method PM-789
+    expected:
+      status: 201
+      body-assertions[2]{field,assertion}:
+        orderId,not null
+        items.length,2
+
+  TC-003:
+    name: test_create_order_below_minimum_rejected
+    type: INTEGRATION
+    setup[2]: Insert customer C-123,Insert low-value product P-LOW
+    request:
+      items[1]{productId,quantity}:
+        P-LOW,1
+    expected:
+      status: 400
+      body-assertions[2]{field,value}:
+        error,ORDER_BELOW_MINIMUM
+        message,Order total is below minimum
+
+  TC-004:
+    name: test_create_order_insufficient_stock_rejected
+    type: INTEGRATION
+    setup[2]: Insert customer C-123,Insert product P-456 with stock 2
+    request:
+      items[1]{productId,quantity}:
+        P-456,5
+    expected:
+      status: 400
+      body-assertions[2]{field,value}:
+        error,INSUFFICIENT_STOCK
+        message,Item P-456 has only 2 units
+
+  TC-005:
+    name: test_create_order_invalid_payment_rejected
+    type: INTEGRATION
+    setup[2]: Insert customer C-123,Do NOT insert payment method
+    request:
+      paymentMethodId: PM-INVALID
+    expected:
+      status: 400
+      body-assertions[2]{field,value}:
+        error,PAYMENT_METHOD_INVALID
+        message,Payment method not found or expired
+
+test-fixtures:
+  customers[1]{id,name,status}:
+    C-123,Test Customer,ACTIVE
+  products[2]{id,name,price,stock}:
+    P-456,Widget,19.99,10
+    P-LOW,Cheap Item,5.00,100
+  payment-methods[1]{id,type,status}:
+    PM-789,CREDIT_CARD,VALID
+
+coverage-matrix[5]{criterion,test-case,status}:
+  AC-001-01,TC-001,COVERED
+  AC-001-02,TC-002,COVERED
+  AC-001-03,TC-003,COVERED
+  AC-001-04,TC-004,COVERED
+  AC-001-05,TC-005,COVERED

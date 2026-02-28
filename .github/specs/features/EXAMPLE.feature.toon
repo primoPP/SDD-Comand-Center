@@ -1,0 +1,94 @@
+# TOON v3.0 – Feature Specification Example
+# Token-Oriented Object Notation for Functional Specs
+# Version: {{BOOTSTRAP_VERSION}}
+# Reference: https://github.com/toon-format/spec
+
+feature:
+  name: CreateOrder
+  version: 1.0.0
+
+meta:
+  id: FT-001
+  priority: HIGH
+  batch: BATCH-01-CORE
+  created: 2025-01-15
+
+context:
+  actor: Customer
+  trigger: Customer submits order
+  preconditions[3]: Customer is authenticated,Cart is not empty,Payment method is valid
+  postconditions[3]: Order is created with PENDING status,Inventory is reserved,Confirmation email is queued
+
+business-rules[3]{id,name,rule,exception}:
+  BR-001,MinimumOrderValue,Order total must be >= $10.00,ORDER_BELOW_MINIMUM
+  BR-002,ValidShippingAddress,Shipping address must be deliverable,INVALID_SHIPPING_ADDRESS
+  BR-003,StockAvailability,All items must have sufficient stock,INSUFFICIENT_STOCK
+
+command:
+  name: CreateOrderCommand
+  inputs[4]{field,type,constraints}:
+    customerId,UUID,required
+    items,List<OrderItemDTO>,"required,min:1"
+    shippingAddress,AddressDTO,required
+    paymentMethodId,UUID,required
+  validations[3]{field,rule}:
+    customerId,Must be valid UUID
+    items,Must contain at least 1 item
+    shippingAddress,Must be complete address
+
+result:
+  name: CreateOrderResult
+  success[5]{field,type}:
+    orderId,UUID
+    orderNumber,String
+    status,OrderStatus
+    total,Money
+    estimatedDelivery,Date
+  errors[4]{code,message}:
+    ORDER_BELOW_MINIMUM,Order total is below minimum
+    INVALID_SHIPPING_ADDRESS,Cannot deliver to address
+    INSUFFICIENT_STOCK,Item {itemName} has only {available} units
+    PAYMENT_METHOD_INVALID,Payment method not found or expired
+
+domain-entities[2]{name,fields}:
+  Order,"id:UUID[generated],customerId:UUID,orderNumber:String[generated],items:List<OrderItem>,status:OrderStatus[default:PENDING],shippingAddress:Address,total:Money[calculated],createdAt:Timestamp[generated],updatedAt:Timestamp[generated]"
+  OrderItem,"productId:UUID,productName:String,quantity:Integer[min:1],unitPrice:Money,subtotal:Money[calculated]"
+
+dependencies:
+  gateways[4]{name,purpose}:
+    CustomerGateway,Verify customer exists and is active
+    ProductGateway,Get product details and check stock
+    PaymentGateway,Validate payment method
+    OrderGateway,Persist order
+  events[2]{name,trigger}:
+    OrderCreatedEvent,Published after successful creation
+    InventoryReservedEvent,Published for each reserved item
+
+scenarios[3]{id,name,type}:
+  SC-001,Successful order creation,HAPPY_PATH
+  SC-002,Order below minimum value,ERROR_CASE
+  SC-003,Insufficient stock,ERROR_CASE
+
+scenario-details:
+  SC-001:
+    given[3]: Customer C-123 exists and is active,Product P-456 has 10 units in stock,Payment method PM-789 is valid
+    when: CreateOrderCommand is executed with valid data
+    then[3]: Order is created with PENDING status,OrderCreatedEvent is published,Returns order details with estimatedDelivery
+  SC-002:
+    given[1]: Order total is $5.00
+    when: CreateOrderCommand is executed
+    then[2]: Throws ORDER_BELOW_MINIMUM exception,No order is created
+  SC-003:
+    given[2]: Product P-456 has 2 units in stock,Order requests 5 units
+    when: CreateOrderCommand is executed
+    then[2]: Throws INSUFFICIENT_STOCK exception,No inventory is reserved
+
+batch-decomposition:
+  total-batches: 2
+  batches[2]{id,name,scope,estimate,codifiable,testable,deployable}:
+    batch-a,Domain Foundation,"Order entity,OrderItem,OrderStatus enum,OrderRepository interface",1d,true,true,true
+    batch-b,CreateOrder UseCase,"CreateOrderCommand,CreateOrderUseCase,OrderCreatedEvent,OrderController",2d,true,true,true
+  implementation-order[2]: batch-a,batch-b
+  dependencies:
+    batch-a: none
+    batch-b: batch-a

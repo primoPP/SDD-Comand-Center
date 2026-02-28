@@ -1,0 +1,67 @@
+# TOON v3.0 – Feature Specification
+# Feature: sdd-agent-centralization
+# Reference: https://github.com/toon-format/spec
+
+feature:
+  name: SddAgentCentralization
+  version: 1.0.0
+  domain: sdd-bootstrap
+  description: Centralize SDD agents, skills, and prompts so teams do not need to install the full SDD configuration on every repository
+  status: draft
+  created: 2026-02-28
+
+context:
+  actor: Team Developer
+  trigger: Developer wants to use SDD agents across multiple repos without per-repo installation
+  preconditions[3]: Developer has VS Code with GitHub Copilot v1.108+,SDD Bootstrap v5.0.1 source repository is accessible,Developer has access to PicPay GitHub organization
+  postconditions[3]: SDD agents are available in all workspaces without per-repo install,Per-repo context files can be initialized lightweight,Multiple centralization strategies are supported
+
+batch-decomposition:
+  total-batches: 3
+  batches[3]{id,name,classification,dependencies,scope,estimate-days,pillars}:
+    batch-a,User-Level Centralization,independent,none,"install-central target + uninstall-central target + central-status target + file copy to ~/.copilot/ + VS Code settings configuration + documentation",2,codificavel|testavel|deployavel
+    batch-b,Org-Level Centralization,dependent,batch-a,"install-org target + GitHub API integration + .github-private repo push + @bootstrap org-sync prompt + org agent template generation",2,codificavel|testavel|deployavel
+    batch-c,Per-Repo Lightweight Init,dependent,batch-a,"install-project-context target + minimal .sdd/ init + copilot-instructions.md generation + domain vocabulary setup without full agent copy",1,codificavel|testavel|deployavel
+  implementation-order[3]: batch-a,batch-b,batch-c
+
+invariants[5]:
+  Centralized agents must not override per-repo workspace agents when both exist
+  User-level install must work without GitHub organization access
+  Org-level install must sync automatically via existing VS Code polling mechanism
+  Per-repo lightweight init must not copy agent or skill files
+  All centralization strategies must be reversible via uninstall commands
+
+business-rules[6]{id,description,condition,success-outcome,failure-outcome,error-message,http-status}:
+  BR-001,User-Level Install Path,Developer runs install-central target,SDD agents + skills + prompts are copied to ~/.copilot/ and VS Code settings configured,Installation fails with descriptive error,CENTRAL_INSTALL_FAILED,N/A
+  BR-002,VS Code Settings Configuration,install-central completes file copy,"chat.instructionsFilesLocations and chat.agentSkillsLocations settings are updated in VS Code user settings.json",Settings file not writable or not found,SETTINGS_UPDATE_FAILED,N/A
+  BR-003,Org-Level Agent Push,Developer runs install-org target with GitHub org access,"SDD agents are pushed to .github-private repo in org, available to all org members via VS Code polling",GitHub API auth fails or .github-private repo not found,ORG_PUSH_FAILED,N/A
+  BR-004,Workspace Override Precedence,"Both centralized and per-repo agents exist for same agent name",Per-repo workspace agent takes precedence over centralized,N/A,N/A,N/A
+  BR-005,Lightweight Per-Repo Init,Developer runs install-project-context in a repo with centralized config,"Only .sdd/ context files and copilot-instructions.md are created, no agents/skills/prompts",Init fails if .sdd/ already exists with full install,CONTEXT_INIT_FAILED,N/A
+  BR-006,Centralization Status Check,Developer runs central-status target,"Shows which strategy is active (user-level/org-level/none), lists centralized files, and shows VS Code settings state",No centralization detected,NO_CENTRAL_CONFIG,N/A
+
+commands[5]{name,description,inputs,outputs,error-codes}:
+  install-central,"Install SDD agents/skills/prompts to user-level (~/.copilot/) and configure VS Code settings","BOOTSTRAP_SOURCE:path(optional),FORCE:bool(optional)","Success message with file count and settings path",CENTRAL_INSTALL_FAILED|SETTINGS_UPDATE_FAILED
+  install-org,"Push SDD agents to GitHub org .github-private repo","ORG_NAME:string(optional),REPO_NAME:string(default:.github-private),BOOTSTRAP_SOURCE:path(optional)","Success message with org sync confirmation",ORG_PUSH_FAILED
+  install-project-context,"Initialize lightweight per-repo context without copying agents/skills","PROJECT_DIR:path(optional),PROJECT_NAME:string(optional)","Success message with created files list",CONTEXT_INIT_FAILED
+  uninstall-central,"Remove centralized files and revert VS Code settings","STRATEGY:string(user|org|all)","Success message with removed files list",N/A
+  central-status,"Show current centralization state and active strategy","(none)","Status table showing strategy + file count + settings",NO_CENTRAL_CONFIG
+
+domain-events[2]{event,trigger,payload}:
+  CentralInstallCompleted,install-central or install-org finishes successfully,"strategy:string,fileCount:int,settingsUpdated:bool"
+  CentralUninstallCompleted,uninstall-central finishes successfully,"strategy:string,filesRemoved:int,settingsReverted:bool"
+
+assumptions[6]:
+  VS Code supports chat.instructionsFilesLocations and chat.agentSkillsLocations settings for external file discovery
+  GitHub org .github-private repo supports custom agent file hosting via existing GitHubOrgCustomAgentProvider
+  VS Code polls org agents every 5 minutes via existing mechanism
+  User home directory ~/.copilot/ is writable and accessible
+  VS Code user settings.json is at standard location per OS
+  Centralization source repo is primoPP/SDD-Comand-Center (personal fork of microsoft/vscode-copilot-chat) which will host the canonical SDD agents and skills
+
+open-questions[6]{id,question,blocking,category,classification-rule}:
+  A-BC-03,"What is the exact step-by-step user journey from centralized install to first usage in a new repo?",false,Technical Detail,Non-blocking - can be inferred from existing install flow
+  B-CDS-02,"Should install commands be idempotent (safe to re-run) or fail if already installed?",false,Technical Detail,Non-blocking - idempotent is industry standard default
+  B-CDS-04,"How should migration from full per-repo install to centralized work for existing repos?",false,Technical Detail,Non-blocking - can document migration guide separately
+  B-INT-01,"Which specific GitHub API endpoints are needed for pushing agents to .github-private repo?",false,Technical Detail,Non-blocking - can use existing octokit patterns from codebase
+  B-INT-03,"Should install-org support dry-run mode to preview what will be pushed?",false,Technical Detail,Non-blocking - nice-to-have that can be added later
+  A-EC-02,"If the GitHub org API is unavailable during install-org, should it retry or fail immediately?",false,Technical Detail,Non-blocking - fail with clear error message is standard

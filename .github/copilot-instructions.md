@@ -1,5 +1,76 @@
 # GitHub Copilot Chat Extension - Copilot Instructions
 
+## SDD Bootstrap
+
+This project uses **SDD (Specification-Driven Development)** methodology.
+
+### Project Context
+
+- **Project**: vscode-copilot-chat
+- **Domain**: VS Code Copilot Chat Extension
+- **Language**: typescript
+- **Framework**: vscode-extension-api
+- **SDD Version**: 5.0.1
+
+### Core Principles
+
+1. **Specs Before Code**: All implementation derives from validated specifications
+2. **Deterministic Output**: Same spec → Same code every time
+3. **Traceability**: Every line of code traces back to a specification
+
+### Available Agents
+
+| Agent | Command | Purpose |
+|-------|---------|---------|
+| Planning | `@planning` | Create feature specifications in TOON format |
+| Architecture | `@architecture` | Define technical contracts and structure |
+| Implementation | `@implementation` | Generate production code from specs |
+| Test | `@test` | Generate comprehensive test suites |
+| Review | `@review` | Validate implementation against specs |
+| Orchestrator | `@orchestrator` | Coordinate full development workflow |
+| Bootstrap | `@bootstrap` | Customize and maintain SDD structure |
+| Product Owner | `@product-owner` | Refine requirements and prioritization |
+
+### Quick Commands
+
+```bash
+make -f sdd.mk validate      # Validate TOON specs
+make -f sdd.mk check-update  # Check for updates
+make -f sdd.mk upgrade       # Upgrade SDD Bootstrap
+```
+
+### File Locations
+
+- **Agents**: `.github/agents/`
+- **Prompts**: `.github/prompts/`
+- **Skills**: `.github/skills/`
+- **Specs**: `.github/specs/`
+- **Config**: `.sdd/`
+
+### Available Skills
+
+Agent Skills are reusable capabilities invoked with `#skill-name`:
+
+| Skill | Purpose |
+|-------|---------|
+| `#toon-validation` | Validate TOON specification syntax |
+| `#feature-spec` | Create feature specifications |
+| `#code-review` | Execute code review workflow |
+| `#batch-planning` | Plan batch execution strategy |
+| `#test-generation` | Generate comprehensive test suites |
+| `#architecture-decision` | Create Architecture Decision Records |
+| `#code-generation` | Generate code from specifications |
+| `#jira-sync` | Sync batches and features with Jira |
+| `#readme-evolution` | Manage README and CHANGELOG updates |
+| `#confluence-sync` | Publish specs and ADRs to Confluence |
+| `#dor-epic-validation` | Validate Definition of Ready for Epics |
+| `#dor-story-validation` | Validate Definition of Ready for Stories |
+| `#dod-validation` | Validate Definition of Done checklist |
+| `#doa-metrics` | Collect and report agility metrics |
+
+<!-- END SDD BOOTSTRAP -->
+
+
 ## Project Overview
 
 This is the **GitHub Copilot Chat** extension for Visual Studio Code - a VS Code extension that provides conversational AI assistance, a coding agent with many tools, inline editing capabilities, and advanced AI-powered features for VS Code.
